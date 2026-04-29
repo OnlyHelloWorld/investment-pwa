@@ -534,6 +534,23 @@
       </div>
     </div>
 
+
+    <!-- ── Share Preview Modal ── -->
+    <div v-if="sharePreview.visible" class="overlay" @click.self="closeSharePreview">
+      <div class="modal" style="max-width: 420px; width: calc(100% - 40px);">
+        <div class="modal-title">长按保存分享图片</div>
+        <div style="font-size: 13px; color: #6f6557; margin-bottom: 12px;">打开后可长按图片保存到相册，再去微信发送。</div>
+        <img
+          :src="sharePreview.url"
+          :alt="sharePreview.filename"
+          style="width: 100%; border-radius: 14px; border: 1px solid #ece4d8; display: block; user-select: none; -webkit-user-select: none;"
+        />
+        <div class="modal-footer" style="margin-top: 16px;">
+          <button class="btn btn-ghost" @click="closeSharePreview">关闭</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Error Detail Modal ── -->
     <div v-if="errorModal.visible" class="overlay" @click.self="closeErrorModal">
       <div class="modal error-detail-modal">
@@ -670,23 +687,23 @@ export default {
       return canvas
     }
 
-    const shareCanvasToWechat = async (canvas, filename) => {
+    const sharePreview = ref({ visible: false, url: '', filename: '' })
+
+    const closeSharePreview = () => {
+      if (sharePreview.value.url) {
+        URL.revokeObjectURL(sharePreview.value.url)
+      }
+      sharePreview.value = { visible: false, url: '', filename: '' }
+    }
+
+    const showSharePreview = async (canvas, filename) => {
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png', 1))
       if (!blob) throw new Error('图片生成失败')
-      const file = new File([blob], filename, { type: 'image/png' })
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: '投资账本分享' })
-        return
-      }
+      closeSharePreview()
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      a.click()
-      window.open('weixin://', '_blank')
-      store.ioMessage = '当前环境不支持直接唤起分享，已下载图片并尝试打开微信'
-      store.ioMessageClass = 'warn'
-      setTimeout(() => URL.revokeObjectURL(url), 2000)
+      sharePreview.value = { visible: true, url, filename }
+      store.ioMessage = '请长按图片保存后再分享'
+      store.ioMessageClass = 'info'
     }
 
     const shareLedgerCard = async () => {
@@ -702,7 +719,7 @@ export default {
             { label: '持仓数量', value: `${filtered.value.length} 只` }
           ]
         })
-        await shareCanvasToWechat(canvas, `${store.currentLedger?.name || 'ledger'}-card.png`)
+        await showSharePreview(canvas, `${store.currentLedger?.name || 'ledger'}-card.png`)
       } catch (err) {
         showErrorDetailModal(err, '分享账本卡片失败')
       }
@@ -722,7 +739,7 @@ export default {
             { label: '盈亏比例', value: `${h.pct >= 0 ? '+' : ''}${fmt(h.pct)}%`, emphasis: h.pct }
           ]
         })
-        await shareCanvasToWechat(canvas, `${h.code}-card.png`)
+        await showSharePreview(canvas, `${h.code}-card.png`)
       } catch (err) {
         showErrorDetailModal(err, '分享个股卡片失败')
       }
@@ -1530,6 +1547,7 @@ export default {
     
     onUnmounted(() => {
       // 清理定时器等
+      closeSharePreview()
     })
     
     return {
@@ -1625,7 +1643,9 @@ export default {
       isHoldingMenuOpen,
       handleDeleteHoldingClick,
       shareLedgerCard,
-      shareHoldingCard
+      shareHoldingCard,
+      sharePreview,
+      closeSharePreview
     }
   }
 }
