@@ -646,6 +646,11 @@ input:focus, select:focus { outline: none; }
   align-items: center;
   margin-bottom: 8px;
 }
+.share-btn {
+  font-size: 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+}
 .add-holding-btn {
   font-size: 13px;
   padding: 8px 14px;
@@ -1552,6 +1557,10 @@ input:focus, select:focus { outline: none; }
   padding: 4px 10px;
   border-radius: 999px;
   white-space: nowrap;
+}
+.share-holding-btn {
+  color: #1a6fa8;
+  border-color: #cfe0f0;
 }
 
 /* Trade zone */
