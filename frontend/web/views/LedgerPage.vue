@@ -165,6 +165,7 @@
       <div class="summary-card">
         <div class="summary-card-header">
           <div class="summary-label">总市值（人民币）</div>
+          <button class="btn btn-ghost share-btn" @click="shareLedgerCard">分享账本卡片</button>
         </div>
         <div class="summary-row">
           <div class="big-num">¥ {{ fmt(summary.totalCNY) }}</div>
@@ -279,6 +280,9 @@
                 title="修改最新记录"
               >
                 修改
+              </button>
+              <button class="btn btn-ghost row-edit-btn share-holding-btn" @click.stop="shareHoldingCard(h)">
+                分享
               </button>
             </div>
           </div>
@@ -623,6 +627,106 @@ export default {
     const ledgerLoading = ref(true)
     const holdingSortBy = ref('mv')
     const holdingSortAsc = ref(false)
+
+    const drawShareCard = ({ title, subtitle, lines = [], accent = '#1a1814' }) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1080
+      canvas.height = 1410
+      const ctx = canvas.getContext('2d')
+      const grad = ctx.createLinearGradient(0, 0, 1080, 1410)
+      grad.addColorStop(0, '#fffdf9')
+      grad.addColorStop(1, '#f5efe4')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = accent
+      ctx.fillRect(70, 70, 940, 14)
+      ctx.fillStyle = '#1f1f1f'
+      ctx.font = 'bold 62px "PingFang SC", "Microsoft YaHei", sans-serif'
+      ctx.fillText(title, 80, 200)
+      ctx.fillStyle = '#6f6557'
+      ctx.font = '36px "PingFang SC", "Microsoft YaHei", sans-serif'
+      ctx.fillText(subtitle, 80, 264)
+      let y = 390
+      lines.forEach((line) => {
+        ctx.fillStyle = '#ffffff'
+        ctx.strokeStyle = '#ece4d8'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.roundRect(80, y - 56, 920, 118, 24)
+        ctx.fill()
+        ctx.stroke()
+        ctx.fillStyle = '#584f42'
+        ctx.font = '34px "PingFang SC", "Microsoft YaHei", sans-serif'
+        ctx.fillText(line.label, 120, y)
+        ctx.fillStyle = line.emphasis ? (line.emphasis > 0 ? '#1f8c55' : '#c0392b') : '#1f1f1f'
+        ctx.font = 'bold 42px "DIN Alternate", "PingFang SC", sans-serif'
+        const valWidth = ctx.measureText(line.value).width
+        ctx.fillText(line.value, 940 - valWidth, y)
+        y += 146
+      })
+      ctx.fillStyle = '#8a7e6e'
+      ctx.font = '30px "PingFang SC", "Microsoft YaHei", sans-serif'
+      ctx.fillText(`投资账本 · ${new Date().toLocaleString('zh-CN')}`, 80, 1320)
+      return canvas
+    }
+
+    const shareCanvasToWechat = async (canvas, filename) => {
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png', 1))
+      if (!blob) throw new Error('图片生成失败')
+      const file = new File([blob], filename, { type: 'image/png' })
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: '投资账本分享' })
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      window.open('weixin://', '_blank')
+      store.ioMessage = '当前环境不支持直接唤起分享，已下载图片并尝试打开微信'
+      store.ioMessageClass = 'warn'
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    }
+
+    const shareLedgerCard = async () => {
+      try {
+        const canvas = drawShareCard({
+          title: `${store.currentLedger?.name || '账本'} · 资产卡片`,
+          subtitle: '账本详细信息',
+          accent: store.currentLedger?.color || '#1a1814',
+          lines: [
+            { label: '总市值(CNY)', value: `¥ ${fmt(summary.value.totalCNY)}` },
+            { label: '账本盈亏', value: `${summary.value.pnl >= 0 ? '+' : ''}¥ ${fmt(summary.value.pnl)}`, emphasis: summary.value.pnl },
+            { label: '盈亏比例', value: `${summary.value.pct >= 0 ? '+' : ''}${fmt(summary.value.pct)}%`, emphasis: summary.value.pct },
+            { label: '持仓数量', value: `${filtered.value.length} 只` }
+          ]
+        })
+        await shareCanvasToWechat(canvas, `${store.currentLedger?.name || 'ledger'}-card.png`)
+      } catch (err) {
+        showErrorDetailModal(err, '分享账本卡片失败')
+      }
+    }
+
+    const shareHoldingCard = async (h) => {
+      try {
+        const canvas = drawShareCard({
+          title: `${h.name} (${h.code})`,
+          subtitle: `个股详细信息 · ${h.market}`,
+          accent: '#1a6fa8',
+          lines: [
+            { label: '当前价格', value: `${SYM[h.ccy]} ${fmt(h.price)}` },
+            { label: '持仓数量', value: `${fmt(h.qty, 0)} 股` },
+            { label: '持仓市值', value: `${SYM[h.ccy]} ${fmt(h.mv)}` },
+            { label: '持仓盈亏', value: `${h.pnl >= 0 ? '+' : ''}${SYM[h.ccy]} ${fmt(h.pnl)}`, emphasis: h.pnl },
+            { label: '盈亏比例', value: `${h.pct >= 0 ? '+' : ''}${fmt(h.pct)}%`, emphasis: h.pct }
+          ]
+        })
+        await shareCanvasToWechat(canvas, `${h.code}-card.png`)
+      } catch (err) {
+        showErrorDetailModal(err, '分享个股卡片失败')
+      }
+    }
     
     const ledgerColors = [
       '#1a1814', '#1a7a4a', '#c0392b', '#1a6fa8', '#8e44ad',
@@ -1519,7 +1623,9 @@ export default {
       openEditLatestTrade,
       handleHoldingMenuClick,
       isHoldingMenuOpen,
-      handleDeleteHoldingClick
+      handleDeleteHoldingClick,
+      shareLedgerCard,
+      shareHoldingCard
     }
   }
 }
