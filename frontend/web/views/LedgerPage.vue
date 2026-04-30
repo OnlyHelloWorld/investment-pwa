@@ -537,13 +537,13 @@
 
     <!-- ── Share Preview Modal ── -->
     <div v-if="sharePreview.visible" class="overlay" @click.self="closeSharePreview">
-      <div class="modal" style="max-width: 420px; width: calc(100% - 40px);">
-        <div class="modal-title">长按保存分享图片</div>
-        <div style="font-size: 13px; color: #6f6557; margin-bottom: 12px;">打开后可长按图片保存到相册，再去微信发送。</div>
+      <div class="modal" style="max-width: 560px; width: calc(100% - 28px);">
+        <div class="modal-title">分享预览</div>
+        <div style="font-size: 13px; color: #6f6557; margin-bottom: 8px;">长按图片保存后即可分享</div>
         <img
           :src="sharePreview.url"
           :alt="sharePreview.filename"
-          style="width: 100%; border-radius: 14px; border: 1px solid #ece4d8; display: block; user-select: none; -webkit-user-select: none;"
+          style="width: 100%; max-height: 74vh; object-fit: contain; border-radius: 14px; border: 1px solid #ece4d8; display: block; user-select: none; -webkit-user-select: none;"
         />
         <div class="modal-footer" style="margin-top: 16px;">
           <button class="btn btn-ghost" @click="closeSharePreview">关闭</button>
@@ -646,11 +646,17 @@ export default {
     const holdingSortAsc = ref(false)
 
     const drawShareCard = ({ title, subtitle, lines = [], accent = '#1a1814' }) => {
+      const rowHeight = 112
+      const headerHeight = 320
+      const footerHeight = 150
+      const bodyHeight = Math.max(220, lines.length * rowHeight + 80)
+      const cardHeight = headerHeight + bodyHeight + footerHeight
+
       const canvas = document.createElement('canvas')
       canvas.width = 1080
-      canvas.height = 1410
+      canvas.height = Math.max(1410, cardHeight)
       const ctx = canvas.getContext('2d')
-      const grad = ctx.createLinearGradient(0, 0, 1080, 1410)
+      const grad = ctx.createLinearGradient(0, 0, 1080, canvas.height)
       grad.addColorStop(0, '#fffdf9')
       grad.addColorStop(1, '#f5efe4')
       ctx.fillStyle = grad
@@ -658,32 +664,33 @@ export default {
       ctx.fillStyle = accent
       ctx.fillRect(70, 70, 940, 14)
       ctx.fillStyle = '#1f1f1f'
-      ctx.font = 'bold 62px "PingFang SC", "Microsoft YaHei", sans-serif'
-      ctx.fillText(title, 80, 200)
+      ctx.font = 'bold 52px "PingFang SC", "Microsoft YaHei", sans-serif'
+      ctx.fillText(title, 80, 190)
       ctx.fillStyle = '#6f6557'
-      ctx.font = '36px "PingFang SC", "Microsoft YaHei", sans-serif'
-      ctx.fillText(subtitle, 80, 264)
-      let y = 390
+      ctx.font = '32px "PingFang SC", "Microsoft YaHei", sans-serif'
+      ctx.fillText(subtitle, 80, 248)
+
+      let y = 360
       lines.forEach((line) => {
         ctx.fillStyle = '#ffffff'
         ctx.strokeStyle = '#ece4d8'
         ctx.lineWidth = 2
         ctx.beginPath()
-        ctx.roundRect(80, y - 56, 920, 118, 24)
+        ctx.roundRect(80, y - 52, 920, 94, 20)
         ctx.fill()
         ctx.stroke()
         ctx.fillStyle = '#584f42'
-        ctx.font = '34px "PingFang SC", "Microsoft YaHei", sans-serif'
-        ctx.fillText(line.label, 120, y)
-        ctx.fillStyle = line.emphasis ? (line.emphasis > 0 ? '#1f8c55' : '#c0392b') : '#1f1f1f'
-        ctx.font = 'bold 42px "DIN Alternate", "PingFang SC", sans-serif'
+        ctx.font = '30px "PingFang SC", "Microsoft YaHei", sans-serif'
+        ctx.fillText(line.label, 116, y)
+        ctx.fillStyle = line.emphasis !== undefined ? (line.emphasis > 0 ? '#1f8c55' : (line.emphasis < 0 ? '#c0392b' : '#1f1f1f')) : '#1f1f1f'
+        ctx.font = 'bold 34px "DIN Alternate", "PingFang SC", sans-serif'
         const valWidth = ctx.measureText(line.value).width
-        ctx.fillText(line.value, 940 - valWidth, y)
-        y += 146
+        ctx.fillText(line.value, 960 - valWidth, y)
+        y += rowHeight
       })
       ctx.fillStyle = '#8a7e6e'
-      ctx.font = '30px "PingFang SC", "Microsoft YaHei", sans-serif'
-      ctx.fillText(`投资账本 · ${new Date().toLocaleString('zh-CN')}`, 80, 1320)
+      ctx.font = '28px "PingFang SC", "Microsoft YaHei", sans-serif'
+      ctx.fillText(`投资账本 · ${new Date().toLocaleString('zh-CN')}`, 80, canvas.height - 70)
       return canvas
     }
 
@@ -716,7 +723,15 @@ export default {
             { label: '总市值(CNY)', value: `¥ ${fmt(summary.value.totalCNY)}` },
             { label: '账本盈亏', value: `${summary.value.pnl >= 0 ? '+' : ''}¥ ${fmt(summary.value.pnl)}`, emphasis: summary.value.pnl },
             { label: '盈亏比例', value: `${summary.value.pct >= 0 ? '+' : ''}${fmt(summary.value.pct)}%`, emphasis: summary.value.pct },
-            { label: '持仓数量', value: `${filtered.value.length} 只` }
+            { label: 'A股市值', value: `¥ ${fmt(summary.value.byCcy.CNY)}` },
+            { label: '港股市值', value: `HK$ ${fmt(summary.value.byCcy.HKD)}` },
+            { label: '美股市值', value: `$ ${fmt(summary.value.byCcy.USD)}` },
+            { label: '持仓数量', value: `${filtered.value.length} 只` },
+            ...filtered.value.map((item, idx) => ({
+              label: `${idx + 1}. ${item.name}(${item.code})`,
+              value: `${item.pct >= 0 ? '+' : ''}${fmt(item.pct)}% / ${SYM[item.ccy]} ${fmt(item.mv)}`,
+              emphasis: item.pct
+            }))
           ]
         })
         await showSharePreview(canvas, `${store.currentLedger?.name || 'ledger'}-card.png`)
@@ -732,11 +747,15 @@ export default {
           subtitle: `个股详细信息 · ${h.market}`,
           accent: '#1a6fa8',
           lines: [
+            { label: '所属市场', value: `${h.market}` },
             { label: '当前价格', value: `${SYM[h.ccy]} ${fmt(h.price)}` },
             { label: '持仓数量', value: `${fmt(h.qty, 0)} 股` },
             { label: '持仓市值', value: `${SYM[h.ccy]} ${fmt(h.mv)}` },
             { label: '持仓盈亏', value: `${h.pnl >= 0 ? '+' : ''}${SYM[h.ccy]} ${fmt(h.pnl)}`, emphasis: h.pnl },
-            { label: '盈亏比例', value: `${h.pct >= 0 ? '+' : ''}${fmt(h.pct)}%`, emphasis: h.pct }
+            { label: '盈亏比例', value: `${h.pct >= 0 ? '+' : ''}${fmt(h.pct)}%`, emphasis: h.pct },
+            { label: '行业分类', value: h.sector || '--' },
+            { label: '交易笔数', value: `${(h.trades || []).length} 笔` },
+            { label: '最新交易', value: (h.trades || []).length ? `${(h.trades || []).slice().sort((a,b)=> (b.date || '').localeCompare(a.date || ''))[0].date} / ${fmt((h.trades || []).slice().sort((a,b)=> (b.date || '').localeCompare(a.date || ''))[0].qty, 0)}股 @ ${fmt((h.trades || []).slice().sort((a,b)=> (b.date || '').localeCompare(a.date || ''))[0].price)}` : '--' }
           ]
         })
         await showSharePreview(canvas, `${h.code}-card.png`)
